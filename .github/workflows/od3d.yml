@@ -1,0 +1,56 @@
+# Chaîne OneDrop3D : compile le firmware du MMU3 avec les étapes de ci-build (Prusa), lance ses tests,
+# affiche la place libre (28 Ko au plus) et, sur un tag od3d-*, publie le .hex en release.
+name: od3d
+
+on:
+  push:
+    branches: ['od3d/**']
+    tags: ['od3d-*']
+  workflow_dispatch:
+
+jobs:
+  firmware:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - run: |
+          sudo apt-get update
+          sudo apt-get install cmake ninja-build python3-pyelftools python3-regex python3-polib gcc-11 g++-11 lcov
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # le numéro de build du .hex compte les commits
+          submodules: true
+      - uses: actions/cache@v4
+        with:
+          path: .dependencies
+          key: build-deps-1_0_0-linux
+      - run: ./utils/bootstrap.py
+      - run: sudo chmod -R 744 .dependencies
+      - name: Compiler
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_TOOLCHAIN_FILE="../cmake/AvrGcc.cmake" -DCMAKE_BUILD_TYPE=Release -G Ninja
+          ninja
+      - name: Place libre
+        run: |
+          utilise=$(.dependencies/avr-gcc-*/bin/avr-size -B build/firmware | awk 'NR==2 {print $1 + $2}')
+          echo "Firmware MMU : $utilise octets utilisés, $((28672 - utilise)) libres sur 28 672." | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Tests unitaires de Prusa
+        run: |
+          mkdir build-tests
+          cd build-tests
+          cmake .. -G Ninja
+          ninja test_coverage_report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: build/autopublish/*.hex
+          if-no-files-found: error
+      - name: Publier
+        if: startsWith(github.ref, 'refs/tags/od3d-')
+        run: |
+          gh release create "$GITHUB_REF_NAME" build/autopublish/*.hex --title "$GITHUB_REF_NAME" --notes "Firmware OneDrop3D pour le MMU3 (non officiel). Il se flashe avec PrusaSlicer par le port USB du MMU. Sources : branche od3d/main, licence GPLv3. Ce n'est pas un produit Prusa Research."
