@@ -13,6 +13,7 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/logic/load_filament.cpp
   ${CMAKE_SOURCE_DIR}/src/logic/move_selector.cpp
   ${CMAKE_SOURCE_DIR}/src/logic/no_command.cpp
+  ${CMAKE_SOURCE_DIR}/src/logic/pulley_service.cpp
   ${CMAKE_SOURCE_DIR}/src/logic/retract_from_finda.cpp
   ${CMAKE_SOURCE_DIR}/src/logic/set_mode.cpp
   ${CMAKE_SOURCE_DIR}/src/logic/start_up.cpp

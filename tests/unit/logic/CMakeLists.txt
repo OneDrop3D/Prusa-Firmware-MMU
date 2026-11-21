@@ -19,3 +19,5 @@ add_subdirectory(tool_change)
 add_subdirectory(unload_filament)
 
 add_subdirectory(failing_tmc)
+
+add_subdirectory(pulley_service)

@@ -10,6 +10,7 @@ target_sources(
           load_filament.cpp
           move_selector.cpp
           no_command.cpp
+          pulley_service.cpp
           retract_from_finda.cpp
           set_mode.cpp
           start_up.cpp

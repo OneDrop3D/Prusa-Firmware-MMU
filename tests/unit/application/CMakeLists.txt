@@ -30,6 +30,7 @@ add_executable(
   ${LOGIC_STUBS_DIR}/main_loop_stub.cpp
   ${LOGIC_STUBS_DIR}/stub_motion.cpp
   ${CMAKE_SOURCE_DIR}/src/logic/no_command.cpp
+  ${CMAKE_SOURCE_DIR}/src/logic/pulley_service.cpp
   ${CMAKE_SOURCE_DIR}/src/logic/command_base.cpp
   ${CMAKE_SOURCE_DIR}/src/logic/cut_filament.cpp
   ${CMAKE_SOURCE_DIR}/src/logic/load_filament.cpp

@@ -18,6 +18,7 @@
 #include "logic/load_filament.h"
 #include "logic/move_selector.h"
 #include "logic/no_command.h"
+#include "logic/pulley_service.h"
 #include "logic/set_mode.h"
 #include "logic/start_up.h"
 #include "logic/tool_change.h"
@@ -49,7 +50,7 @@ void __attribute__((noinline)) Application::CheckManualOperation() {
 
     lastCommandProcessedMs = ms - idleDelay; // prevent future overflows
 
-    if (currentCommand->State() == ProgressCode::OK && mg::globals.FilamentLoaded() <= mg::FilamentLoadState::AtPulley) {
+    if (currentCommand->State() == ProgressCode::OK && mg::globals.FilamentLoaded() <= mg::FilamentLoadState::AtPulley && !logic::pulleyService.Active()) {
         if (mui::userInput.AnyEvent()) {
             switch (mui::userInput.ConsumeEvent()) {
             case mui::Event::Left:
@@ -105,7 +106,8 @@ void Application::ReportCommandAccepted(const mp::RequestMsg &rq, mp::ResponseMs
 }
 
 void __attribute__((noinline)) Application::PlanCommand(const modules::protocol::RequestMsg &rq) {
-    if (currentCommand->State() == ProgressCode::OK) {
+    // OneDrop3D (F12) : pas de nouvelle commande pendant un mouvement de la poulie demandé par le registre 0x24
+    if (currentCommand->State() == ProgressCode::OK && !logic::pulleyService.Active()) {
         // We are allowed to start a new command as the previous one is in the OK finished state
         // The previous command may be in an error state, but as long as it is in ProgressCode::OK (aka finished)
         // we are safe here. It is the responsibility of the printer to ask for a command error code
@@ -301,6 +303,7 @@ void Application::Step() {
     }
 
     currentCommand->Step();
+    logic::pulleyService.Step();
 }
 
 uint8_t Application::CurrentProgressCode() {

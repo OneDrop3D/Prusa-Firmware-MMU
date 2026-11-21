@@ -6,6 +6,7 @@
 
 #include "registers.h"
 #include "application.h"
+#include "logic/pulley_service.h"
 #include "version.hpp"
 
 #include "modules/finda.h"
@@ -167,6 +168,7 @@
 | 0x21h 33 | uint16   | Reserved for internal use  | 225          |             | N/A                                      | N/A          | N/A        | N/A
 | 0x22h 34 | uint16   | Bowden length              | 341-1000     | 168h 360    | unit mm                                  | Read / Write Persistent | M707 A0x22 | M708 A0x22 Xn
 | 0x23h 35 | uint8    | Cut length                 | 0-255        | 8           | unit mm                                  | Read / Write | M707 A0x23 | M708 A0x23 Xn
+| 0x24h 36 | uint16   | OneDrop3D pulley service   | slot*256+mm  | 0           | see logic/pulley_service.h (0 = stop)    | Read / Write | M707 A0x24 | M708 A0x24 Xn
 */
 
 using TReadFunc = uint16_t (*)();
@@ -379,10 +381,15 @@ static const RegisterRec registers[] PROGMEM = {
     RegisterRec(
         []() -> uint16_t { return mg::globals.CutLength().v; },
         [](uint16_t d) { mg::globals.SetCutLength(d); }),
+
+    // 0x24 OneDrop3D pulley service (F12) RW : écriture traitée par WriteRegister, qui peut la refuser
+    RegisterRec(
+        []() -> uint16_t { return logic::pulleyService.Mode(); }),
 };
 
 static constexpr uint8_t registersSize = sizeof(registers) / sizeof(RegisterRec);
-static_assert(registersSize == 36);
+static_assert(registersSize == 37);
+static constexpr uint8_t pulleyServiceRegister = 0x24;
 
 bool ReadRegister(uint8_t address, uint16_t &value) {
     if (address >= registersSize) {
@@ -403,6 +410,9 @@ bool ReadRegister(uint8_t address, uint16_t &value) {
 bool WriteRegister(uint8_t address, uint16_t value) {
     if (address >= registersSize) {
         return false;
+    }
+    if (address == pulleyServiceRegister) {
+        return logic::pulleyService.Write(value);
     }
     const uint8_t *addr = reinterpret_cast<const uint8_t *>(registers + address);
 
