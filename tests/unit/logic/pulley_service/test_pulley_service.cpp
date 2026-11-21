@@ -20,7 +20,12 @@ using logic::PulleyService;
 namespace {
 
 constexpr uint8_t pulleyServiceRegister = 0x24;
-constexpr int32_t stepsPer10mm = int32_t(config::pulley.stepsPerUnit * 256 + 0.5) * 10 / 256;
+constexpr int32_t stepsPerMm_x256 = int32_t(config::pulley.stepsPerUnit * 256 + 0.5);
+/// Même calcul entier que le firmware (arrondi vers le bas : +10 mm = 835 pas, -10 mm = -836 pas)
+constexpr int32_t Steps(int8_t mm) {
+    return (int32_t(mm) * stepsPerMm_x256) >> 8;
+}
+constexpr int32_t stepsPer10mm = Steps(10);
 
 void Init() {
     ForceReinitAllAutomata();
@@ -82,7 +87,7 @@ TEST_CASE("pulley_service::jog", "[pulley_service]") {
     REQUIRE(RunUntilIdle(slot, engaged, disengaged, 100000));
     REQUIRE(engaged); // galet serré sur l'emplacement pendant le mouvement
     REQUIRE_FALSE(disengaged);
-    REQUIRE(mm::motion.Position(mm::Pulley) - start == (dist > 0 ? stepsPer10mm : -stepsPer10mm));
+    REQUIRE(mm::motion.Position(mm::Pulley) - start == Steps(dist));
 
     // BUG-1 : galet relâché et poulie coupée à la fin
     WaitIdlerReady();
@@ -103,7 +108,7 @@ TEST_CASE("pulley_service::clean_stops_by_itself", "[pulley_service]") {
     REQUIRE(disengaged); // galet libéré pendant toute la rotation
     REQUIRE_FALSE(engaged);
     // 10 mm/s pendant 60 s, puis arrêt sans ordre
-    REQUIRE(start - mm::motion.Position(mm::Pulley) == stepsPer10mm * PulleyService::cleanSeconds);
+    REQUIRE(mm::motion.Position(mm::Pulley) - start == Steps(-10) * PulleyService::cleanSeconds);
     REQUIRE(mi::idler.Disengaged());
     REQUIRE_FALSE(mm::motion.Enabled(mm::Pulley));
 }
