@@ -16,11 +16,21 @@ typedef uint16_t st_timer_t;
 static_assert(F_CPU / config::stepTimerFrequencyDivider == 2000000,
     "speed tables not compatible for the requested frequency");
 
-/// Lookup table for rates equal or higher than 8*256
-extern const st_timer_t speed_table_fast[256][2] PROGMEM;
+/// First used index of the original fast table (lower rates go to the slow table)
+static constexpr uint8_t speedTableFastFirst = 8;
 
-/// Lookup table for lower step rates
-extern const st_timer_t speed_table_slow[256][2] PROGMEM;
+/// The rate is at most 10000 after step_loops, so the original fast table is used up to index 39 (+1 for the slope)
+static_assert(config::maxStepFrequency <= 40000, "speed_table_fast is cut for rates <= 10000 after step_loops");
+static constexpr uint8_t speedTableFastSize = (10000 >> 8) + 2 - speedTableFastFirst;
+
+/// The slow table covers rates 0..2047 by steps of 8 (+1 entry for the slope of the last segment)
+static constexpr uint16_t speedTableSlowSize = 257;
+
+/// Lookup table for rates equal or higher than 8*256 (interval only, the slope is the difference with the next entry)
+extern const st_timer_t speed_table_fast[speedTableFastSize] PROGMEM;
+
+/// Lookup table for lower step rates (interval only, the slope is the difference with the next entry)
+extern const st_timer_t speed_table_slow[speedTableSlowSize] PROGMEM;
 
 /// Calculate the next timer interval and steps according to current step rate
 static inline st_timer_t calc_timer(st_timer_t step_rate, uint8_t &step_loops) {
@@ -45,16 +55,17 @@ static inline st_timer_t calc_timer(st_timer_t step_rate, uint8_t &step_loops) {
         step_rate = (F_CPU / 500000);
     step_rate -= (F_CPU / 500000); // Correct for minimal speed
     if (step_rate >= (8 * 256)) { // higher step rate
-        const uint16_t *table_address = &speed_table_fast[(uint8_t)(step_rate >> 8)][0];
+        const uint16_t *table_address = &speed_table_fast[(uint8_t)(step_rate >> 8) - speedTableFastFirst];
         uint8_t tmp_step_rate = (step_rate & 0x00ff);
-        uint16_t gain = pm::read_word(table_address + 1);
+        uint16_t base = pm::read_word(table_address);
+        uint16_t gain = base - pm::read_word(table_address + 1);
         timer = mulU8X16toH16(tmp_step_rate, gain);
-        timer = pm::read_word(table_address) - timer;
+        timer = base - timer;
     } else { // lower step rates
-        const uint16_t *table_address = &speed_table_slow[0][0];
-        table_address += (step_rate >> 2) & 0xfffe;
+        const uint16_t *table_address = &speed_table_slow[step_rate >> 3];
         timer = pm::read_word(table_address);
-        timer -= ((pm::read_word(table_address + 1) * (uint8_t)(step_rate & 0x0007)) >> 3);
+        uint16_t gain = timer - pm::read_word(table_address + 1);
+        timer -= ((gain * (uint8_t)(step_rate & 0x0007)) >> 3);
     }
     if (timer < 100) {
         // 20kHz this should never happen
