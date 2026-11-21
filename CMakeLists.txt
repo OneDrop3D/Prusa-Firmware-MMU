@@ -116,6 +116,13 @@ if(CMAKE_CROSSCOMPILING)
   add_compile_options(${MCU_FLAGS})
   add_link_options(${MCU_FLAGS})
 
+  # OneDrop3D : place libre (MMU-1). -mcall-prologues partage les sauvegardes de registres des
+  # grosses fonctions (pas des interruptions), -mstrict-X restreint l'usage du pointeur X.
+  # Le comportement du code ne change pas ; gain mesuré : 474 octets.
+  set(OD3D_SIZE_FLAGS -mcall-prologues -mstrict-X)
+  add_compile_options(${OD3D_SIZE_FLAGS})
+  add_link_options(${OD3D_SIZE_FLAGS})
+
   # disable some C++ language features
   add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fno-threadsafe-statics>)
   add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>)
