@@ -45,6 +45,13 @@ public:
     /// @returns true if the move has been enqueued
     bool PlanMoveTo(pos_t pos, steps_t feed_rate, steps_t end_rate = 0);
 
+    /// OneDrop3D : prolonge sans arrêt le mouvement en cours jusqu'à pos, qui doit être plus loin dans le même sens.
+    /// Seulement avec un seul bloc, en accélération ou en palier : acc_step_rate est alors la vitesse réelle et le
+    /// nouveau bloc repart de là (en décélération, elle resterait celle du sommet : trop rapide).
+    /// À appeler interruption du pas suspendue (Motion::ExtendMoveTo).
+    /// @returns false si ce n'est pas possible (rien n'est changé)
+    bool ExtendMoveTo(pos_t pos, steps_t feed_rate);
+
     /// Stop whatever moves are being done
     /// @param halt When true, also abruptly stop axis movement.
     void AbortPlannedMoves(bool halt = true);

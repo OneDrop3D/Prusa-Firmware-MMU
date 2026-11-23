@@ -115,6 +115,10 @@ public:
     /// @param end_rate endding feedrate (may not be reached!)
     void PlanMoveTo(Axis axis, pos_t pos, steps_t feed_rate, steps_t end_rate = 0);
 
+    /// OneDrop3D : prolonge sans arrêt le mouvement en cours de l'axe jusqu'à pos (PulseGen::ExtendMoveTo)
+    /// @returns false si ce n'est pas possible (rien n'est changé)
+    bool ExtendMoveTo(Axis axis, pos_t pos, steps_t feed_rate);
+
     /// Enqueue a single axis move using PlanMoveTo, but using AxisUnit. The Axis needs to
     /// be supplied as the first template argument: PlanMoveTo<axis>(pos, rate).
     /// @see PlanMoveTo, unitToSteps

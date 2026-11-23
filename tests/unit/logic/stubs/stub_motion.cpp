@@ -52,6 +52,16 @@ void Motion::PlanMoveTo(Axis axis, pos_t pos, steps_t feed_rate, steps_t end_rat
         SetEnabled(axis, true);
 }
 
+bool Motion::ExtendMoveTo(Axis axis, pos_t pos, steps_t /*feed_rate*/) {
+    // OneDrop3D : un seul mouvement en cours, nouvelle cible plus loin dans le même sens (pas de décélération simulée)
+    auto &moves = axes[axis].plannedMoves;
+    if (moves.size() != 1 || moves.front() == axes[axis].pos || (moves.front() > axes[axis].pos) != (pos > moves.front()) || pos == moves.front()) {
+        return false;
+    }
+    moves.front() = pos;
+    return true;
+}
+
 pos_t Motion::Position(Axis axis) const {
     return axes[axis].pos;
 }

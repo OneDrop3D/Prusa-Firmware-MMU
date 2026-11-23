@@ -48,6 +48,7 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/logic/unload_to_finda.cpp
   test_registers.cpp
   test_application.cpp
+  test_manual_selector.cpp
   )
 
 # define required search paths

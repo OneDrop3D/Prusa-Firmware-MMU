@@ -6,6 +6,7 @@
 
 #include "registers.h"
 #include "application.h"
+#include "logic/progress_codes.h"
 #include "logic/pulley_service.h"
 #include "version.hpp"
 
@@ -346,7 +347,14 @@ static const RegisterRec registers[] PROGMEM = {
     // 0x1b Set/Get Selector slot RW
     RegisterRec(
         []() -> uint16_t { return ms::selector.Slot(); },
-        [](uint16_t d) { ms::selector.MoveToSlot(d); }),
+        // OneDrop3D : hors commande, une nouvelle position pendant un déplacement est prise (écran Moteurs du MMU)
+        [](uint16_t d) {
+            if (application.CurrentProgressCode() == uint8_t(ProgressCode::OK)) {
+                ms::selector.Retarget(d);
+            } else {
+                ms::selector.MoveToSlot(d);
+            }
+        }),
     // 0x1c Set/Get Idler slot RW
     RegisterRec(
         []() -> uint16_t { return mi::idler.Slot(); },

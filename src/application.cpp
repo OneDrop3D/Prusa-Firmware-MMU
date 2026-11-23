@@ -7,6 +7,7 @@
 #include "modules/globals.h"
 #include "modules/leds.h"
 #include "modules/permanent_storage.h"
+#include "modules/selector.h"
 #include "modules/serial.h"
 #include "modules/user_input.h"
 
@@ -41,43 +42,54 @@ Application::Application()
 void __attribute__((noinline)) Application::CheckManualOperation() {
     uint16_t ms = mt::timebase.Millis();
     constexpr uint16_t idleDelay = 1000U;
-    if (ms - lastCommandProcessedMs < idleDelay) {
-        if (currentCommand->State() == ProgressCode::OK) {
-            mui::userInput.Clear(); // consume bogus UI events while no command in progress and not in idle state yet
+    uint8_t slot = mg::globals.ActiveSlot();
+    // OneDrop3D : pendant un déplacement du sélecteur par les boutons, et dans la seconde qui suit, Gauche/Droite
+    // décalent la cible d'une case de plus (deux appuis rapides = deux cases d'un coup). Le bouton du milieu reste
+    // ignoré pendant ce temps, comme chez Prusa.
+    const bool chained = currentCommand == &logic::moveSelector && !logic::pulleyService.Active()
+        && (currentCommand->State() == ProgressCode::MovingSelector
+            || (currentCommand->State() == ProgressCode::OK && ms - lastCommandProcessedMs < idleDelay));
+    if (chained) {
+        slot = ms::selector.PlannedSlot();
+    } else {
+        if (ms - lastCommandProcessedMs < idleDelay) {
+            if (currentCommand->State() == ProgressCode::OK) {
+                mui::userInput.Clear(); // consume bogus UI events while no command in progress and not in idle state yet
+            }
+            return;
         }
-        return;
+
+        lastCommandProcessedMs = ms - idleDelay; // prevent future overflows
+
+        if (currentCommand->State() != ProgressCode::OK || mg::globals.FilamentLoaded() > mg::FilamentLoadState::AtPulley || logic::pulleyService.Active() || !mui::userInput.AnyEvent()) {
+            return;
+        }
     }
 
-    lastCommandProcessedMs = ms - idleDelay; // prevent future overflows
-
-    if (currentCommand->State() == ProgressCode::OK && mg::globals.FilamentLoaded() <= mg::FilamentLoadState::AtPulley && !logic::pulleyService.Active()) {
-        if (mui::userInput.AnyEvent()) {
-            switch (mui::userInput.ConsumeEvent()) {
-            case mui::Event::Left:
-                // move selector left if possible
-                if (mg::globals.ActiveSlot() > 0) {
-                    logic::moveSelector.Reset(mg::globals.ActiveSlot() - 1);
-                    currentCommand = &logic::moveSelector;
-                }
-                break;
-            case mui::Event::Middle:
-                // plan load
-                if (mg::globals.ActiveSlot() < config::toolCount) { // do we have a meaningful selector position?
-                    logic::loadFilament.Reset(mg::globals.ActiveSlot());
-                    currentCommand = &logic::loadFilament;
-                }
-                break;
-            case mui::Event::Right:
-                // move selector right if possible (including the park position)
-                if (mg::globals.ActiveSlot() < config::toolCount) {
-                    logic::moveSelector.Reset(mg::globals.ActiveSlot() + 1); // we allow also the park position
-                    currentCommand = &logic::moveSelector;
-                }
-                break;
-            default:
-                break;
-            }
+    switch (mui::userInput.ConsumeEvent()) {
+    case mui::Event::Left:
+        // move selector left if possible
+        if (slot > 0) {
+            logic::moveSelector.Reset(slot - 1);
+            currentCommand = &logic::moveSelector;
         }
+        break;
+    case mui::Event::Middle:
+        // plan load
+        if (!chained && slot < config::toolCount) { // do we have a meaningful selector position?
+            logic::loadFilament.Reset(slot);
+            currentCommand = &logic::loadFilament;
+        }
+        break;
+    case mui::Event::Right:
+        // move selector right if possible (including the park position)
+        if (slot < config::toolCount) {
+            logic::moveSelector.Reset(slot + 1); // we allow also the park position
+            currentCommand = &logic::moveSelector;
+        }
+        break;
+    default:
+        break;
     }
 }
 

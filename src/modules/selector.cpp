@@ -15,7 +15,13 @@ namespace selector {
 Selector selector;
 
 void Selector::PrepareMoveToPlannedSlot() {
-    mm::motion.PlanMoveTo<mm::Selector>(SlotPosition(plannedSlot), mm::unitToAxisUnit<mm::S_speed_t>(mg::globals.SelectorFeedrate_mm_s()));
+    const mm::S_pos_t target = SlotPosition(plannedSlot);
+    const mm::S_speed_t feed = mm::unitToAxisUnit<mm::S_speed_t>(mg::globals.SelectorFeedrate_mm_s());
+    // OneDrop3D (Retarget) : pendant un déplacement, le mouvement en cours est prolongé sans arrêt si c'est possible ;
+    // sinon, et toujours à l'arrêt (file vide), un nouveau mouvement comme chez Prusa
+    if (!mm::motion.ExtendMoveTo(mm::Selector, target.v, feed.v)) {
+        mm::motion.PlanMoveTo<mm::Selector>(target, feed);
+    }
     dbg_logic_fP(PSTR("Prepare Move Selector slot %d"), plannedSlot);
 }
 
@@ -86,6 +92,29 @@ Selector::OperationResult Selector::MoveToSlot(uint8_t slot) {
 
     // do the move
     return InitMovementNoReinitAxis();
+}
+
+Selector::OperationResult Selector::Retarget(uint8_t slot) {
+    if (slot > config::toolCount) {
+        return OperationResult::Refused;
+    }
+    switch (state) {
+    case Moving:
+        // comme MoveToSlot : jamais avec un filament dans le sélecteur
+        if (mf::finda.Pressed() || mm::motion.Full(mm::Selector)) {
+            return OperationResult::Refused;
+        }
+        plannedSlot = slot;
+        PrepareMoveToPlannedSlot(); // prolongé, ou ajouté à la suite (arrêt sur la cible précédente, puis la nouvelle)
+        return OperationResult::Accepted;
+    case PlannedHome:
+    case HomeForward:
+    case HomeBack:
+        plannedSlot = slot;
+        return OperationResult::Accepted;
+    default:
+        return MoveToSlot(slot);
+    }
 }
 
 bool Selector::Step() {

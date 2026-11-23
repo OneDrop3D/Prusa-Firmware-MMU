@@ -9,6 +9,10 @@ namespace logic {
 MoveSelector moveSelector;
 
 bool MoveSelector::Reset(uint8_t param) {
+    if (state == ProgressCode::MovingSelector) {
+        // OneDrop3D : nouvel appui pendant le déplacement, seule la cible change (un refus n'est pas une erreur)
+        return ms::selector.Retarget(param) == ms::Selector::OperationResult::Accepted;
+    }
     state = ProgressCode::MovingSelector;
 
     if (ms::selector.MoveToSlot(param) != ms::Selector::OperationResult::Refused) {

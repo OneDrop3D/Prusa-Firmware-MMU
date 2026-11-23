@@ -133,6 +133,15 @@ bool PulseGen::PlanMoveTo(pos_t target, steps_t feed_rate, steps_t end_rate) {
     return true;
 }
 
+bool PulseGen::ExtendMoveTo(pos_t target, steps_t feed_rate) {
+    if (!current_block || block_index.count() != 1 || steps_completed > current_block->decelerate_after
+        || (current_block->direction ? target <= position : target >= position)) {
+        return false;
+    }
+    AbortPlannedMoves(false); // garde last_rate = vitesse actuelle
+    return PlanMoveTo(target, feed_rate);
+}
+
 pos_t PulseGen::CurPosition() const {
     pos_t cur_pos = position;
     circular_index_t iter = block_index;

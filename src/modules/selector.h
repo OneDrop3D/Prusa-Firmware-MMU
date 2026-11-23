@@ -23,6 +23,15 @@ public:
     /// @note if(state==OnHold) all attempts to move the selector are rejected with OperationResult::Rejected
     OperationResult MoveToSlot(uint8_t slot);
 
+    /// OneDrop3D : comme MoveToSlot, mais une nouvelle cible est aussi acceptée pendant un déplacement (boutons du MMU,
+    /// registre 0x1b hors commande) : plus loin dans le même sens, le mouvement continue sans s'arrêter si c'est encore
+    /// possible (PulseGen::ExtendMoveTo), sinon le trajet vers la nouvelle cible s'ajoute à la suite.
+    /// Pendant la prise d'origine, la cible est seulement retenue (la prise d'origine finit dessus).
+    OperationResult Retarget(uint8_t slot);
+
+    /// @returns the slot of the last accepted target (equals Slot() once the move is finished)
+    inline uint8_t PlannedSlot() const { return plannedSlot; }
+
     /// Performs one step of the state machine according to currently planned operation.
     /// @returns true if the selector is ready to accept new commands (i.e. it has finished the last operation)
     bool Step();

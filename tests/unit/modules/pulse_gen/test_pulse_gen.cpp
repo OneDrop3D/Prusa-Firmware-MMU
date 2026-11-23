@@ -285,3 +285,79 @@ TEST_CASE("pulse_gen::accel_ramp", "[pulse_gen]") {
         printf("\n\n");
     }
 }
+
+// OneDrop3D : deux appuis rapides sur un bouton du MMU = un seul mouvement du sélecteur, sans arrêt sur la case du milieu
+TEST_CASE("pulse_gen::extend_move", "[pulse_gen]") {
+    MotorParams mp = {
+        .idx = 0,
+        .dirOn = config::idler.dirOn,
+        .csPin = IDLER_CS_PIN,
+        .stepPin = IDLER_STEP_PIN,
+        .sgPin = IDLER_SG_PIN,
+        .mRes = config::idler.mRes
+    };
+
+    // Le sélecteur : 200 pas/mm, 45 mm/s, 200 mm/s², 1 mm/s de jerk, 14 mm entre deux cases
+    constexpr steps_t jerk = 200;
+    constexpr steps_t accel = 40000;
+    constexpr steps_t feed = 9000;
+    constexpr pos_t slot = 2800;
+    PulseGen pg(jerk, accel);
+
+    SECTION("pas encore parti : refusé") {
+        REQUIRE(pg.PlanMoveTo(slot, feed));
+        REQUIRE_FALSE(pg.ExtendMoveTo(2 * slot, feed));
+        REQUIRE(pg.Position() == slot);
+    }
+
+    SECTION("en accélération puis en palier : prolongé sans ralentir") {
+        for (const int done : { 300, 1500 }) {
+            pg.SetPosition(0);
+            REQUIRE(pg.PlanMoveTo(slot, feed));
+            st_timer_t before = 0;
+            for (int i = 0; i < done; ++i) {
+                before = pg.Step(mp);
+            }
+            REQUIRE(pg.ExtendMoveTo(2 * slot, feed));
+            REQUIRE(pg.Position() == 2 * slot);
+            REQUIRE(pg.PlannedMoves() == 1);
+            // jusqu'au freinage final, aucun pas plus lent qu'au moment du 2e appui : pas d'arrêt sur la 1re case
+            for (pos_t p = done; p < slot + slot / 2; ++p) {
+                REQUIRE(pg.Step(mp) <= before);
+            }
+            REQUIRE(stepUntilDone(pg, mp) == slot / 2);
+            REQUIRE(pg.CurPosition() == 2 * slot);
+        }
+    }
+
+    SECTION("en décélération : refusé (la vitesse retenue serait celle du sommet)") {
+        REQUIRE(pg.PlanMoveTo(slot, feed));
+        for (int i = 0; i < 2500; ++i) {
+            pg.Step(mp);
+        }
+        REQUIRE_FALSE(pg.ExtendMoveTo(2 * slot, feed));
+        REQUIRE(pg.Position() == slot);
+        REQUIRE(stepUntilDone(pg, mp) == slot - 2500);
+    }
+
+    SECTION("même cible, plus près ou sens inverse : refusé") {
+        REQUIRE(pg.PlanMoveTo(slot, feed));
+        for (int i = 0; i < 300; ++i) {
+            pg.Step(mp);
+        }
+        REQUIRE_FALSE(pg.ExtendMoveTo(slot, feed));
+        REQUIRE_FALSE(pg.ExtendMoveTo(slot - 100, feed));
+        REQUIRE_FALSE(pg.ExtendMoveTo(-slot, feed));
+        REQUIRE(pg.Position() == slot);
+    }
+
+    SECTION("vers l'arrière aussi") {
+        REQUIRE(pg.PlanMoveTo(-slot, feed));
+        for (int i = 0; i < 300; ++i) {
+            pg.Step(mp);
+        }
+        REQUIRE(pg.ExtendMoveTo(-2 * slot, feed));
+        REQUIRE(stepUntilDone(pg, mp) == 2 * slot - 300);
+        REQUIRE(pg.CurPosition() == -2 * slot);
+    }
+}

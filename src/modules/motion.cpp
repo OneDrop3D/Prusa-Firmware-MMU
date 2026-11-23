@@ -108,6 +108,11 @@ void Motion::PlanMoveTo(Axis axis, pos_t pos, steps_t feed_rate, steps_t end_rat
     }
 }
 
+bool Motion::ExtendMoveTo(Axis axis, pos_t pos, steps_t feed_rate) {
+    auto guard = SuspendIsr(); // le bloc en cours est remplacé entre deux pas
+    return axisData[axis].ctrl.ExtendMoveTo(pos, feed_rate);
+}
+
 pos_t Motion::Position(Axis axis) const {
     return axisData[axis].ctrl.Position();
 }
