@@ -69,8 +69,7 @@ bool PulleyService::WriteAssist(uint16_t value) {
     if (mode != Idle
         || application.CurrentProgressCode() != uint8_t(ProgressCode::OK)
         || mg::globals.FilamentLoaded() != mg::FilamentLoadState::InNozzle
-        // Galet sans prise d'origine (MMU allumé avec le filament dans la buse) : Engage la fait d'abord, comme une
-        // commande de Prusa après un redémarrage ; le moteur de la poulie, coupé, laisse filer le filament
+        || !mi::idler.HomingValid()
         || mi::idler.Engage(mg::globals.ActiveSlot()) == mi::Idler::OperationResult::Refused) {
         return false;
     }

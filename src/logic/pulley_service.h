@@ -24,9 +24,9 @@ namespace logic {
 ///   plus vite que l'extrudeur, elle pousse avec une petite force et décroche (pas perdus, sans dommage) dès qu'elle
 ///   est en avance. Chaque ordre vaut assistSeconds : sans nouvel ordre, elle s'arrête et le galet se relâche ;
 /// - n = 0 : arrêt, courant de Prusa, galet relâché (toujours accepté).
-/// Refusé si n > assistMax, pendant une commande ou un jog/nettoyage, ou sans filament jusqu'à la buse. Galet sans
-/// prise d'origine (MMU allumé avec le filament dans la buse) : elle est faite d'abord (un balayage, poulie libre).
-/// Une commande de l'imprimante arrête l'assistance et reste refusée jusqu'au galet relâché : l'imprimante la renvoie.
+/// Refusé si n > assistMax, pendant une commande ou un jog/nettoyage, sans filament jusqu'à la buse, ou si le galet
+/// n'a pas fait sa prise d'origine (MMU redémarré pendant l'impression : elle balaierait le filament). Une commande
+/// de l'imprimante arrête l'assistance et reste refusée jusqu'au galet relâché : l'imprimante la renvoie.
 /// Lecture : 0x8000 | vitesse appliquée (0 hors assistance) ; le bit 15 dit à l'imprimante que le registre existe.
 class PulleyService {
 public:

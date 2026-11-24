@@ -261,6 +261,10 @@ TEST_CASE("pulley_service::assist_refused", "[pulley_service]") {
     mg::globals.SetFilamentLoaded(2, mg::FilamentLoadState::InNozzle);
     // trop rapide
     REQUIRE_FALSE(WriteRegister(assistRegister, PulleyService::assistMax + 1));
+    // galet sans prise d'origine (MMU redémarré pendant l'impression)
+    mi::idler.InvalidateHoming();
+    REQUIRE_FALSE(WriteRegister(assistRegister, 500));
+    REQUIRE(EnsureActiveSlotIndex(2, mg::FilamentLoadState::InNozzle));
     // le jog du F12 est refusé pendant l'assistance
     REQUIRE(WriteRegister(assistRegister, 500));
     REQUIRE_FALSE(WriteRegister(pulleyServiceRegister, Request(5, 10)));
@@ -271,9 +275,4 @@ TEST_CASE("pulley_service::assist_refused", "[pulley_service]") {
     REQUIRE(WriteRegister(assistRegister, 0));
     REQUIRE(ReadAssist() == PulleyService::assistPresent);
     REQUIRE(mi::idler.Disengaged());
-
-    // galet sans prise d'origine (MMU allumé avec le filament dans la buse) : accepté, la prise d'origine d'abord
-    mi::idler.InvalidateHoming();
-    REQUIRE(WriteRegister(assistRegister, 500));
-    REQUIRE(mi::idler.State() == mi::Idler::HomeForward);
 }
