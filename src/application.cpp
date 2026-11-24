@@ -154,8 +154,6 @@ void __attribute__((noinline)) Application::PlanCommand(const modules::protocol:
         bool accepted = currentCommand->Reset(rq.value);
         ReportCommandAccepted(rq, accepted ? mp::ResponseMsgParamCodes::Accepted : mp::ResponseMsgParamCodes::Rejected);
     } else {
-        // OneDrop3D (F11) : la commande arrête l'assistance ; refusée jusqu'au galet relâché, l'imprimante la renvoie
-        logic::pulleyService.StopAssist();
         ReportCommandAccepted(rq, mp::ResponseMsgParamCodes::Rejected);
     }
 }

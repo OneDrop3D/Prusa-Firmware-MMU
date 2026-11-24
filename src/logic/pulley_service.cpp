@@ -15,8 +15,6 @@ namespace {
     constexpr int32_t stepsPerMm_x256 = int32_t(config::pulley.stepsPerUnit * 256 + 0.5);
     /// Vitesse du jog : la vitesse lente de Prusa (20 mm/s), celle des petits mouvements de la poulie
     constexpr mm::P_speed_t jogSpeed = mm::unitToAxisUnit<mm::P_speed_t>(config::pulleySlowFeedrate);
-    /// F11 : pas/s = centièmes de mm/s * assistRate_x256 / 256 (précision 0,04 %)
-    constexpr uint32_t assistRate_x256 = uint32_t(config::pulley.stepsPerUnit * 256 / 100 + 0.5);
 } // namespace
 
 bool PulleyService::Write(uint16_t value) {
@@ -48,44 +46,6 @@ bool PulleyService::Write(uint16_t value) {
     return true;
 }
 
-bool PulleyService::WriteAssist(uint16_t value) {
-    if (value == 0) {
-        if (mode == Assist) {
-            speed = 0;
-            Write(0);
-        }
-        return true;
-    }
-    if (value > assistMax) {
-        return false;
-    }
-    if (mode == Assist && phase != Release) { // nouvelle vitesse
-        speed = value;
-        if (phase == Moving) {
-            RunAssist();
-        }
-        return true;
-    }
-    if (mode != Idle
-        || application.CurrentProgressCode() != uint8_t(ProgressCode::OK)
-        || mg::globals.FilamentLoaded() != mg::FilamentLoadState::InNozzle
-        || !mi::idler.HomingValid()
-        || mi::idler.Engage(mg::globals.ActiveSlot()) == mi::Idler::OperationResult::Refused) {
-        return false;
-    }
-    mode = Assist;
-    speed = value;
-    phase = WaitIdler;
-    return true;
-}
-
-void PulleyService::RunAssist() {
-    const mm::steps_t rate = mm::steps_t((speed * assistRate_x256) >> 8);
-    // La vitesse change en marche : le reste du mouvement est remplacé (halt = false garde la vitesse actuelle)
-    mm::motion.AbortPlannedMoves(mm::Pulley, false);
-    mpu::pulley.PlanMove(mm::P_pos_t({ int32_t(rate) * assistSeconds }), mm::P_speed_t({ rate }));
-}
-
 void PulleyService::Step() {
     if (mode == Idle) {
         return;
@@ -97,13 +57,6 @@ void PulleyService::Step() {
     switch (phase) {
     case WaitIdler:
         if (idlerState == mi::Idler::Ready) {
-            if (mode == Assist) {
-                // Courant réduit : la poulie ne pousse qu'avec une petite force et décroche quand elle est en avance
-                mm::motion.InitAxis(mm::Pulley, hal::tmc2130::MotorCurrents(assistIRun, 0));
-                RunAssist();
-                phase = Moving;
-                break;
-            }
             mpu::pulley.InitAxis();
             // Calcul entier (pas de flottants) : 1 mm = stepsPerMm_x256 / 256 pas, précision 0,02 %
             const int32_t steps = (int32_t(distance) * stepsPerMm_x256) >> 8;
@@ -122,14 +75,13 @@ void PulleyService::Step() {
             phase = Release;
         }
         break;
-    default: // Release : on attend la fin d'un mouvement du galet en cours, on le relâche, puis la fin de ce mouvement
-        // (une commande ne doit pas trouver le galet en marche : elle reste refusée jusque-là)
-        if (idlerFailed || (idlerState == mi::Idler::Ready && mi::idler.Disengaged())) {
-            mpu::pulley.InitAxis(); // courant de Prusa (F11 l'a baissé) ; moteur coupé
+    default: // Release : on attend la fin d'un mouvement du galet en cours, puis on le relâche
+        if (idlerState == mi::Idler::Ready || idlerFailed) {
+            if (!idlerFailed) {
+                mi::idler.Disengage();
+            }
             mpu::pulley.Disable();
             mode = Idle;
-        } else if (idlerState == mi::Idler::Ready) {
-            mi::idler.Disengage();
         }
         break;
     }
